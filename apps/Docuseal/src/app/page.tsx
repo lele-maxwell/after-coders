@@ -28,6 +28,8 @@ import {
   Download,
   Trash2,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { DashboardSkeleton } from '@/components/loading-skeletons';
 
@@ -48,22 +50,31 @@ export default function HomePage() {
             last_name?: string;
             name?: string;
             email?: string;
-            [key: string]: unknown;
           };
-      date?: string;
+      created_at?: string;
+      updated_at?: string;
+      documents?: { url?: string; filename?: string }[];
     }[]
   >([]);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [hasPrevPage, setHasPrevPage] = useState(false);
+  const templatesPerPage = 20;
 
   useEffect(() => {
     fetchTemplates();
-  }, []);
-
+  }, [currentPage]);
   const fetchTemplates = async () => {
     setLoadingTemplates(true);
     try {
-      const res = await fetch('/api/docuseal/templates');
+      const url = new URL('/api/docuseal/templates', window.location.origin);
+      url.searchParams.set('limit', templatesPerPage.toString());
+      url.searchParams.set('page', currentPage.toString());
+      
+      const res = await fetch(url.toString());
       if (!res.ok) {
         const text = await res.text();
         throw new Error(text || 'Failed to fetch templates');
@@ -80,6 +91,18 @@ export default function HomePage() {
       else if (Array.isArray(data?.templates)) list = data.templates;
       else if (Array.isArray(data?.items)) list = data.items;
       else list = [];
+      
+      // Handle pagination info
+      if (data?.pagination) {
+        setTotalCount(data.pagination.count || 0);
+        setHasNextPage(!!data.pagination.next);
+        setHasPrevPage(!!data.pagination.prev);
+      } else {
+        setTotalCount(list.length);
+        setHasNextPage(false);
+        setHasPrevPage(false);
+      }
+      
       setTemplates(list);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -102,11 +125,29 @@ export default function HomePage() {
         throw new Error(body || 'Delete failed');
       }
       toast.success('Template deleted');
+      // Refresh templates after successful delete
+      fetchTemplates();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       toast.error('Delete failed: ' + message);
       setTemplates(original);
     }
+  };
+
+  const goToNextPage = () => {
+    if (hasNextPage) {
+      setCurrentPage(prev => prev + 1);
+    }
+  };
+
+  const goToPrevPage = () => {
+    if (hasPrevPage) {
+      setCurrentPage(prev => prev - 1);
+    }
+  };
+
+  const goToPage = (page: number) => {
+    setCurrentPage(page);
   };
 
   const onDownloadTemplate = async (template: any) => {
@@ -163,6 +204,9 @@ export default function HomePage() {
       const newTemplate = await res.json();
       toast.success('Template created successfully! Redirecting to editor...', { id: toastId });
 
+      // Refresh templates to show the new upload
+      fetchTemplates();
+      
       router.push(`/templates/${newTemplate.id}/edit`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -351,6 +395,61 @@ export default function HomePage() {
             </Card>
           ))}
         </div>
+
+        {/* Pagination Controls */}
+        {totalCount > templatesPerPage && (
+          <div className="mb-8 flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              Showing {Math.min((currentPage - 1) * templatesPerPage + 1, totalCount)} to{' '}
+              {Math.min(currentPage * templatesPerPage, totalCount)} of {totalCount} templates
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={goToPrevPage}
+                disabled={!hasPrevPage}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+              
+              <div className="flex items-center space-x-1">
+                {Array.from({ length: Math.min(5, Math.ceil(totalCount / templatesPerPage)) }, (_, i) => {
+                  const pageNum = currentPage <= 3 
+                    ? i + 1 
+                    : currentPage + i - 2;
+                  const totalPages = Math.ceil(totalCount / templatesPerPage);
+                  
+                  if (pageNum > totalPages) return null;
+                  
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={pageNum === currentPage ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => goToPage(pageNum)}
+                      className="w-8 h-8 p-0"
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+              </div>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={goToNextPage}
+                disabled={!hasNextPage}
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Upload Section */}
         <div className="mb-8 flex justify-center">

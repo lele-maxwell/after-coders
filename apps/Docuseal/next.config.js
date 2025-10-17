@@ -1,21 +1,34 @@
 //@ts-check
 
- 
-const { composePlugins, withNx } = require('@nx/next');
+// Standalone Next.js config for Docker/standalone usage
+// This config doesn't depend on Nx and can be used in Docker containers
 
 /**
- * @type {import('@nx/next/plugins/with-nx').WithNxOptions}
+ * @type {import('next').NextConfig}
  **/
 const nextConfig = {
-  // Use this to set Nx-specific options
-  // See: https://nx.dev/recipes/next/next-config-setup
-  nx: {},
+  // Enable experimental features if needed
+  experimental: {
+    // Add any experimental features here
+  },
+  
+  // Transpile packages if needed
   transpilePackages: [],
+  
+  // Output configuration for standalone builds
+  output: 'standalone',
+  
+  // Environment variables
+  env: {
+    // Add any custom environment variables here
+  },
+  
+  // Webpack configuration
+  webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
+    // Add any custom webpack configuration here
+    return config;
+  },
 };
 
-const plugins = [
-  // Add more Next.js plugins to this list if needed.
-  withNx,
-];
-
-module.exports = composePlugins(...plugins)(nextConfig);
+module.exports = nextConfig;
+ 

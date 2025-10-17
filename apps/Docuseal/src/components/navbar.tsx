@@ -14,45 +14,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogOut, User, Mail } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useCounts } from "@/contexts/counts-context";
 
 export function Navbar() {
   const { data: session } = useSession();
-  const [submissionsCount, setSubmissionsCount] = useState(0);
-  const [templatesCount, setTemplatesCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-
-  // Fetch counts when component mounts and user is authenticated
-  useEffect(() => {
-    if (!session) return;
-
-    const fetchCounts = async () => {
-      try {
-        // Fetch templates count
-        const templatesRes = await fetch('/api/docuseal/templates');
-        if (templatesRes.ok) {
-          const templatesData = await templatesRes.json();
-          const templates = templatesData.data || templatesData || [];
-          setTemplatesCount(Array.isArray(templates) ? templates.length : 0);
-        }
-
-        // Fetch submissions count
-        const submissionsRes = await fetch('/api/docuseal/submissions');
-        if (submissionsRes.ok) {
-          const submissionsData = await submissionsRes.json();
-          const submissions = submissionsData.data || submissionsData.items || submissionsData || [];
-          setSubmissionsCount(Array.isArray(submissions) ? submissions.length : 0);
-        }
-      } catch (error) {
-        console.error('Error fetching counts:', error);
-        // Keep counts at 0 if there's an error
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCounts();
-  }, [session]);
+  const { submissionsCount, templatesCount, loading } = useCounts();
 
   // Don't render navbar if user is not authenticated
   if (!session) {

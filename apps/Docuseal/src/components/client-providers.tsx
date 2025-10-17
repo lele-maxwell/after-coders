@@ -3,6 +3,7 @@
 import React from 'react';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Navbar } from '@/components/navbar';
+import { CountsProvider } from '@/contexts/counts-context';
 
 export default function ClientProviders({
   children,
@@ -16,8 +17,10 @@ export default function ClientProviders({
       enableSystem={false}
       disableTransitionOnChange
     >
-      <Navbar />
-      {children}
+      <CountsProvider>
+        <Navbar />
+        {children}
+      </CountsProvider>
     </ThemeProvider>
   );
 }

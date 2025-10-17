@@ -266,15 +266,13 @@ export default function SubmissionsPage() {
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status.toUpperCase()) {
-      case 'SENT':
-      case 'PENDING': // From dev branch
+      case 'PENDING':
         return 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-400';
       case 'DECLINED':
         return 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-400';
       case 'COMPLETED':
         return 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-400';
-      case 'OPENED':
-      case 'EXPIRED': // From dev branch
+      case 'EXPIRED':
         return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-400';
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
@@ -501,10 +499,10 @@ export default function SubmissionsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">All Status</SelectItem>
-                  <SelectItem value="SENT">Sent</SelectItem>
-                  <SelectItem value="OPENED">Opened</SelectItem>
+                  <SelectItem value="PENDING">Pending</SelectItem>
                   <SelectItem value="COMPLETED">Completed</SelectItem>
                   <SelectItem value="DECLINED">Declined</SelectItem>
+                  <SelectItem value="EXPIRED">Expired</SelectItem>
                 </SelectContent>
               </Select>
             </div>

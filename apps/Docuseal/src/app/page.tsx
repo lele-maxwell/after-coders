@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useSession } from '@/lib/auth-client';
+import { useCounts } from '@/contexts/counts-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -35,6 +36,7 @@ import { DashboardSkeleton } from '@/components/loading-skeletons';
 
 export default function HomePage() {
   const { data: session, isPending } = useSession();
+  const { incrementTemplates, decrementTemplates } = useCounts();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -58,21 +60,14 @@ export default function HomePage() {
   >([]);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
-  const [hasNextPage, setHasNextPage] = useState(false);
-  const [hasPrevPage, setHasPrevPage] = useState(false);
-  const templatesPerPage = 20;
-
   useEffect(() => {
     fetchTemplates();
-  }, [currentPage]);
+  }, []);
   const fetchTemplates = async () => {
     setLoadingTemplates(true);
     try {
       const url = new URL('/api/docuseal/templates', window.location.origin);
-      url.searchParams.set('limit', templatesPerPage.toString());
-      url.searchParams.set('page', currentPage.toString());
+      url.searchParams.set('limit', '1000'); // Get all templates
       
       const res = await fetch(url.toString());
       if (!res.ok) {
@@ -83,27 +78,10 @@ export default function HomePage() {
       // Accept multiple possible shapes returned by the proxy or DocuSeal API:
       // - direct array: [{...}, ...]
       // - { data: [...] }
-      // - { templates: [...] }
-      // - { items: [...] }
-      let list: any[] = [];
-      if (Array.isArray(data)) list = data;
-      else if (Array.isArray(data?.data)) list = data.data;
-      else if (Array.isArray(data?.templates)) list = data.templates;
-      else if (Array.isArray(data?.items)) list = data.items;
-      else list = [];
+      const list = data.data || data.templates || data || [];
       
-      // Handle pagination info
-      if (data?.pagination) {
-        setTotalCount(data.pagination.count || 0);
-        setHasNextPage(!!data.pagination.next);
-        setHasPrevPage(!!data.pagination.prev);
-      } else {
-        setTotalCount(list.length);
-        setHasNextPage(false);
-        setHasPrevPage(false);
-      }
       
-      setTemplates(list);
+      setTemplates(Array.isArray(list) ? list : []);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       toast.error('Unable to load templates: ' + message);
@@ -125,6 +103,7 @@ export default function HomePage() {
         throw new Error(body || 'Delete failed');
       }
       toast.success('Template deleted');
+      decrementTemplates();
       // Refresh templates after successful delete
       fetchTemplates();
     } catch (err: unknown) {
@@ -134,21 +113,6 @@ export default function HomePage() {
     }
   };
 
-  const goToNextPage = () => {
-    if (hasNextPage) {
-      setCurrentPage(prev => prev + 1);
-    }
-  };
-
-  const goToPrevPage = () => {
-    if (hasPrevPage) {
-      setCurrentPage(prev => prev - 1);
-    }
-  };
-
-  const goToPage = (page: number) => {
-    setCurrentPage(page);
-  };
 
   const onDownloadTemplate = async (template: any) => {
     const doc = Array.isArray(template.documents) && template.documents.length > 0
@@ -204,6 +168,7 @@ export default function HomePage() {
       const newTemplate = await res.json();
       toast.success('Template created successfully! Redirecting to editor...', { id: toastId });
 
+      incrementTemplates();
       // Refresh templates to show the new upload
       fetchTemplates();
       
@@ -389,67 +354,13 @@ export default function HomePage() {
 
                 <div className="mt-2 flex items-center space-x-2 text-sm text-muted-foreground">
                   <Calendar className="h-3 w-3" />
-                  <span>{template.date}</span>
+                  <span>{template.created_at ? new Date(template.created_at).toLocaleDateString() : 'No date'}</span>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        {/* Pagination Controls */}
-        {totalCount > templatesPerPage && (
-          <div className="mb-8 flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">
-              Showing {Math.min((currentPage - 1) * templatesPerPage + 1, totalCount)} to{' '}
-              {Math.min(currentPage * templatesPerPage, totalCount)} of {totalCount} templates
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={goToPrevPage}
-                disabled={!hasPrevPage}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </Button>
-              
-              <div className="flex items-center space-x-1">
-                {Array.from({ length: Math.min(5, Math.ceil(totalCount / templatesPerPage)) }, (_, i) => {
-                  const pageNum = currentPage <= 3 
-                    ? i + 1 
-                    : currentPage + i - 2;
-                  const totalPages = Math.ceil(totalCount / templatesPerPage);
-                  
-                  if (pageNum > totalPages) return null;
-                  
-                  return (
-                    <Button
-                      key={pageNum}
-                      variant={pageNum === currentPage ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => goToPage(pageNum)}
-                      className="w-8 h-8 p-0"
-                    >
-                      {pageNum}
-                    </Button>
-                  );
-                })}
-              </div>
-              
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={goToNextPage}
-                disabled={!hasNextPage}
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        )}
 
         {/* Upload Section */}
         <div className="mb-8 flex justify-center">

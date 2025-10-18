@@ -1,3 +1,4 @@
+ 
 # Development Dockerfile for Next.js Docuseal App
 FROM node:20-alpine
 

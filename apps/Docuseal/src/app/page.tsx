@@ -5,7 +5,6 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useSession } from '@/lib/auth-client';
-import { useCounts } from '@/contexts/counts-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -27,14 +26,11 @@ import {
   Download,
   Trash2,
   Loader2,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react';
 import { DashboardSkeleton } from '@/components/loading-skeletons';
 
 export default function HomePage() {
   const { data: session, isPending } = useSession();
-  const { incrementTemplates, decrementTemplates } = useCounts();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -50,24 +46,22 @@ export default function HomePage() {
             last_name?: string;
             name?: string;
             email?: string;
+            [key: string]: unknown;
           };
-      created_at?: string;
-      updated_at?: string;
-      documents?: { url?: string; filename?: string }[];
+      date?: string;
     }[]
   >([]);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
+
   useEffect(() => {
     fetchTemplates();
   }, []);
+
   const fetchTemplates = async () => {
     setLoadingTemplates(true);
     try {
-      const url = new URL('/api/docuseal/templates', window.location.origin);
-      url.searchParams.set('limit', '1000'); // Get all templates
-      
-      const res = await fetch(url.toString());
+      const res = await fetch('/api/docuseal/templates');
       if (!res.ok) {
         const text = await res.text();
         throw new Error(text || 'Failed to fetch templates');
@@ -76,10 +70,15 @@ export default function HomePage() {
       // Accept multiple possible shapes returned by the proxy or DocuSeal API:
       // - direct array: [{...}, ...]
       // - { data: [...] }
-      const list = data.data || data.templates || data || [];
-      
-      
-      setTemplates(Array.isArray(list) ? list : []);
+      // - { templates: [...] }
+      // - { items: [...] }
+      let list: any[] = [];
+      if (Array.isArray(data)) list = data;
+      else if (Array.isArray(data?.data)) list = data.data;
+      else if (Array.isArray(data?.templates)) list = data.templates;
+      else if (Array.isArray(data?.items)) list = data.items;
+      else list = [];
+      setTemplates(list);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       toast.error('Unable to load templates: ' + message);
@@ -101,16 +100,12 @@ export default function HomePage() {
         throw new Error(body || 'Delete failed');
       }
       toast.success('Template deleted');
-      decrementTemplates();
-      // Refresh templates after successful delete
-      fetchTemplates();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       toast.error('Delete failed: ' + message);
       setTemplates(original);
     }
   };
-
 
   const onDownloadTemplate = async (template: any) => {
     const doc = Array.isArray(template.documents) && template.documents.length > 0
@@ -166,10 +161,6 @@ export default function HomePage() {
       const newTemplate = await res.json();
       toast.success('Template created successfully! Redirecting to editor...', { id: toastId });
 
-      incrementTemplates();
-      // Refresh templates to show the new upload
-      fetchTemplates();
-      
       router.push(`/templates/${newTemplate.id}/edit`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -352,13 +343,12 @@ export default function HomePage() {
 
                 <div className="mt-2 flex items-center space-x-2 text-sm text-muted-foreground">
                   <Calendar className="h-3 w-3" />
-                  <span>{template.created_at ? new Date(template.created_at).toLocaleDateString() : 'No date'}</span>
+                  <span>{template.date}</span>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
-
 
         {/* Upload Section */}
         <div className="mb-8 flex justify-center">

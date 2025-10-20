@@ -34,7 +34,6 @@ import { Loader2, Trash2, PlusCircle, Copy, Download, Eye, Send, Search, Filter,
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { SubmissionsSkeleton } from '@/components/loading-skeletons';
-import { useCounts } from '@/contexts/counts-context';
 
 interface CreateSubmissionForm {
   template_id: number;
@@ -49,8 +48,7 @@ interface CreateSubmissionForm {
 export default function SubmissionsPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { incrementSubmissions, decrementSubmissions, refreshCounts } = useCounts();
-  const [allSubmissions, setAllSubmissions] = useState<DocuSeal.Submission[]>([]);
+  const [submissions, setSubmissions] = useState<DocuSeal.Submission[]>([]);
   const [templates, setTemplates] = useState<{ id: number; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -74,12 +72,11 @@ export default function SubmissionsPage() {
   const fetchSubmissions = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch all submissions with high limit
-      const url = `/api/docuseal/submissions?status=${
-        filterStatus === 'ALL' ? '' : filterStatus
-      }&limit=1000`;
-      
-      const response = await fetch(url);
+      const response = await fetch(
+        `/api/docuseal/submissions?status=${
+          filterStatus === 'ALL' ? '' : filterStatus
+        }`
+      );
       if (!response.ok) {
         throw new Error('Failed to fetch submissions');
       }
@@ -92,13 +89,7 @@ export default function SubmissionsPage() {
       else if (Array.isArray(raw?.items))
         payload = raw.items as DocuSeal.Submission[];
       else payload = [];
-      
-      console.log('=== SUBMISSIONS PAGE DATA ===');
-      console.log('Raw API response:', raw);
-      console.log('Processed payload:', payload);
-      console.log('Total submissions loaded:', payload.length);
-      
-      setAllSubmissions(payload);
+      setSubmissions(payload);
     } catch (error: unknown) {
       toast.error('Error fetching submissions', {
         description:
@@ -173,8 +164,6 @@ export default function SubmissionsPage() {
       // DocuSeal API returns an array of submitters, not a full submission
       // We need to refetch the submissions list to get the updated data
       toast.success('Submission created successfully!');
-      // Refresh the actual count from API instead of just incrementing
-      refreshCounts();
       reset();
       await fetchSubmissions();
     } catch (error: unknown) {
@@ -191,8 +180,8 @@ export default function SubmissionsPage() {
   const onDeleteSubmission = async (id: number) => {
     if (!confirm('Are you sure you want to delete this submission?')) return;
 
-    const originalSubmissions = allSubmissions;
-    setAllSubmissions((prev) => prev.filter((s) => s.id !== id));
+    const originalSubmissions = submissions;
+    setSubmissions((prev) => prev.filter((s) => s.id !== id));
     toast.loading('Deleting submission...', { id: 'delete-submission' });
 
     try {
@@ -207,15 +196,13 @@ export default function SubmissionsPage() {
       toast.success('Submission deleted successfully!', {
         id: 'delete-submission',
       });
-      // Refresh the actual count from API instead of just decrementing
-      refreshCounts();
     } catch (error: unknown) {
       toast.error('Error deleting submission', {
         description:
           error instanceof Error ? error.message : 'An unknown error occurred',
         id: 'delete-submission',
       });
-      setAllSubmissions(originalSubmissions);
+      setSubmissions(originalSubmissions);
     }
   };
 
@@ -279,27 +266,28 @@ export default function SubmissionsPage() {
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status.toUpperCase()) {
-      case 'PENDING':
+      case 'SENT':
+      case 'PENDING': // From dev branch
         return 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-400';
       case 'DECLINED':
         return 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-400';
       case 'COMPLETED':
         return 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-400';
-      case 'EXPIRED':
+      case 'OPENED':
+      case 'EXPIRED': // From dev branch
         return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-400';
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
     }
   };
 
-  // Filter and paginate submissions
-  const filteredSubmissions = allSubmissions.filter((submission) => {
+  const filteredSubmissions = submissions.filter((submission) => {
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch =
       submission.template.name.toLowerCase().includes(searchLower) ||
       submission.submitters.some(
         (s) =>
-          (s.email && s.email.toLowerCase().includes(searchLower)) ||
+          s.email.toLowerCase().includes(searchLower) ||
           (s.name && s.name.toLowerCase().includes(searchLower))
       );
     const matchesStatus =
@@ -307,9 +295,6 @@ export default function SubmissionsPage() {
       submission.status.toUpperCase() === filterStatus;
     return matchesSearch && matchesStatus;
   });
-
-  // Use all filtered submissions (no pagination)
-  const currentSubmissions = filteredSubmissions;
 
   if (loading) {
     return <SubmissionsSkeleton />;
@@ -516,10 +501,10 @@ export default function SubmissionsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">All Status</SelectItem>
-                  <SelectItem value="PENDING">Pending</SelectItem>
+                  <SelectItem value="SENT">Sent</SelectItem>
+                  <SelectItem value="OPENED">Opened</SelectItem>
                   <SelectItem value="COMPLETED">Completed</SelectItem>
                   <SelectItem value="DECLINED">Declined</SelectItem>
-                  <SelectItem value="EXPIRED">Expired</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -534,7 +519,7 @@ export default function SubmissionsPage() {
             <Send className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">No submissions found</h3>
             <p className="text-muted-foreground text-center mb-4">
-              {allSubmissions.length === 0
+              {submissions.length === 0
                 ? 'Get started by creating your first submission.'
                 : 'Try adjusting your search or filter criteria.'}
             </p>
@@ -697,7 +682,6 @@ export default function SubmissionsPage() {
           </CardContent>
         </Card>
       )}
-
       </div>
     </div>
   );
